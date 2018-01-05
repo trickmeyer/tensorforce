@@ -130,39 +130,25 @@ class Model(object):
                     self.increment_global_episode = self.global_episode.assign_add(tf.count_nonzero(input_tensor=self.terminal, dtype=tf.int32))
                 else:
                     self.loss = tf.losses.get_total_loss()
+                    for l in tf.losses.get_losses():
+                        tf.summary.scalar('loss/{}'.format(l.name), l)
                     if self.optimizer_args is not None:
                         self.optimizer_args['loss'] = self.loss
                         self.optimize = self.optimizer.minimize(self.optimizer_args)
                     else:
                         self.optimize = self.optimizer.minimize(self.loss)
-
             if config.distributed:
                 scope_context.__exit__(None, None, None)
 
         self.saver = tf.train.Saver()
         if config.tf_summary is not None:
-            # create a summary for total loss
-            tf.summary.scalar('total-loss', self.loss)
-
             # create summary writer
             self.writer = tf.summary.FileWriter(config.tf_summary, graph=tf.get_default_graph())
-            self.last_summary_step = -float('inf')
-
-            # create summaries based on summary level
-            if config.tf_summary_level >= 2:  # trainable variables
-                for v in tf.trainable_variables():
-                    tf.summary.histogram(v.name, v)
-
-            # merge all summaries
-            self.tf_summaries = tf.summary.merge_all()
-
-            # create a separate summary for episode rewards
-            self.tf_episode_reward = tf.placeholder(tf.float32, name='episode-reward-placeholder')
-            self.episode_reward_summary = tf.summary.scalar('episode-reward', self.tf_episode_reward)
+            self._init_tf_writer(config.tf_summary_level, True)
+            self._write_each_reward = True
         else:
             self.writer = None
-            config.tf_summary_level
-            config.tf_summary_interval
+            self._write_each_reward = False
 
         self.timestep = 0
         self.summary_interval = config.tf_summary_interval
@@ -171,6 +157,32 @@ class Model(object):
             self.set_session(tf.Session())
             self.session.run(tf.global_variables_initializer())
             # tf.get_default_graph().finalize()
+
+    def _init_tf_writer(self, tf_summary_level):
+        # create a summary for total loss
+        if hasattr(self, 'loss'):
+            tf.summary.scalar('loss/total', self.loss)
+        if hasattr(self, 'q_deltas'):
+            tf.summary.histogram('loss/q-delta', self.q_deltas)
+
+        self.last_summary_step = -float('inf')
+
+        # create summaries based on summary level
+        if tf_summary_level >= 2:  # trainable variables
+            for v in tf.trainable_variables():
+                tf.summary.histogram(v.name, v)
+
+        # merge all summaries
+        self.tf_summaries = tf.summary.merge_all()
+
+        # create a separate summary for episode rewards
+        if self._write_each_reward:
+            self.tf_episode_reward = tf.placeholder(tf.float32, name='episode-reward-placeholder')
+            self.episode_reward_summary = tf.summary.scalar('episode-reward', self.tf_episode_reward)
+
+    def add_tf_writer(self, writer, tf_summary_level):
+        self.writer = writer
+        self._init_tf_writer(tf_summary_level)
 
     def create_tf_operations(self, config):
         """
@@ -252,6 +264,12 @@ class Model(object):
         internal = [fetched[n][0] for n in range(len(self.internal_outputs))]
         return action, internal
 
+    def _maybe_append_tf_summaries(self, fetches):
+        if self.should_write_summaries():
+            return fetches + [self.tf_summaries]
+        else:
+            return fetches
+
     def update(self, batch):
         """Generic batch update operation for Q-learning and policy gradient algorithms.
          Takes a batch of experiences,
@@ -324,6 +342,6 @@ class Model(object):
         self.writer.add_summary(summaries, global_step=self.timestep)
 
     def write_episode_reward_summary(self, episode_reward):
-        if self.writer is not None:
+        if self._write_each_reward and self.writer is not None:
             reward_summary = self.session.run(self.episode_reward_summary, feed_dict={self.tf_episode_reward: episode_reward})
             self.writer.add_summary(reward_summary, global_step=self.timestep)

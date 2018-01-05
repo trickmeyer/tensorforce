@@ -56,7 +56,9 @@ class DQNModel(QModel):
                 num_actions = config.actions[name].num_actions
                 shape = (-1,) + config.actions[name].shape + (num_actions,)
 
-                output = layers['linear'](x=self.training_network.output, size=(flat_size * num_actions))
+                output = layers['linear'](x=self.training_network.output, size=(flat_size * num_actions),
+                                          l2_regularization=config.l2_regularization,
+                                          l1_regularization=config.l1_regularization)
                 output = tf.reshape(tensor=output, shape=shape)
 
                 self.training_output[name] = output

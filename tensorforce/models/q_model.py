@@ -79,10 +79,10 @@ class QModel(Model):
             self.target_variables = tf.contrib.framework.get_variables(scope=target_scope)
 
         with tf.name_scope('update'):
-            deltas = self.create_q_deltas(config)
+            self.q_deltas = self.create_q_deltas(config)
 
             # Surrogate loss as the mean squared error between actual observed rewards and expected rewards
-            delta = tf.reduce_mean(input_tensor=tf.concat(values=deltas, axis=1), axis=1)
+            delta = tf.reduce_mean(input_tensor=tf.concat(values=self.q_deltas, axis=1), axis=1)
             self.loss_per_instance = tf.square(delta)
 
             # If loss clipping is used, calculate the huber loss
@@ -99,7 +99,7 @@ class QModel(Model):
             for action_ind in range(self.q_loss.shape[1]):
                 tf.summary.scalar('q-loss-action-{}'.format(action_ind), self.q_loss[action_ind])
         else:
-            tf.summary.scalar('q-loss', self.q_loss)
+            tf.summary.scalar('loss/q', self.q_loss)
 
         # Update target network
         with tf.name_scope('update-target'):

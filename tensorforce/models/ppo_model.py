@@ -110,21 +110,26 @@ class PPOModel(PolicyGradientModel):
             # Presentation on conservative policy iteration:
             # https://www.cs.cmu.edu/~jcl/presentation/RL/RL.ps
             prob_ratio = tf.reduce_mean(input_tensor=tf.concat(values=prob_ratios, axis=1), axis=1)
+            tf.summary.histogram('prob_ratio', prob_ratio)
+            tf.summary.scalar('mean_prob_ratio', tf.reduce_mean(input_tensor=prob_ratio, axis=0))
+
             clipped_prob_ratio = tf.clip_by_value(prob_ratio, 1.0 - config.loss_clipping, 1.0 + config.loss_clipping)
             self.loss_per_instance = -tf.minimum(x=(prob_ratio * self.reward), y=(clipped_prob_ratio * self.reward))
-            self.surrogate_loss = tf.reduce_mean(input_tensor=self.loss_per_instance, axis=0)
+            self.surrogate_loss = tf.reduce_mean(input_tensor=self.loss_per_instance, axis=0, name='surrogate_loss')
             tf.losses.add_loss(self.surrogate_loss)
 
             # Mean over actions, mean over batch
             entropy_penalty = tf.reduce_mean(input_tensor=tf.concat(values=entropy_penalties, axis=1), axis=1)
-            self.entropy_penalty = tf.reduce_mean(input_tensor=entropy_penalty, axis=0)
+            self.entropy_penalty = tf.reduce_mean(input_tensor=entropy_penalty, axis=0, name='entropy_penalty')
             tf.losses.add_loss(self.entropy_penalty)
 
             kl_divergence = tf.reduce_mean(input_tensor=tf.concat(values=kl_divergences, axis=1), axis=1)
             self.kl_divergence = tf.reduce_mean(input_tensor=kl_divergence, axis=0)
+            tf.summary.scalar('kl_divergence', self.kl_divergence)
 
             entropy = tf.reduce_mean(input_tensor=tf.concat(values=entropies, axis=1), axis=1)
             self.entropy = tf.reduce_mean(input_tensor=entropy, axis=0)
+            tf.summary.scalar('entropy', self.entropy)
 
     def update(self, batch):
         """
@@ -185,9 +190,5 @@ class PPOModel(PolicyGradientModel):
 
             else:  # Otherwise just optimize
                 self.session.run(fetches=self.optimize, feed_dict=feed_dict)
-
-        self.logger.debug('Loss = {}'.format(loss))
-        self.logger.debug('KL divergence = {}'.format(kl_divergence))
-        self.logger.debug('Entropy = {}'.format(entropy))
 
         return loss, loss_per_instance

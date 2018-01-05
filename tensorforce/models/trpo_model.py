@@ -33,6 +33,7 @@ import tensorflow as tf
 from tensorforce import util
 from tensorforce.models import PolicyGradientModel
 from tensorforce.core.optimizers import ConjugateGradientOptimizer
+from tensorforce.util import SummarySessionWrapper
 
 
 class TRPOModel(PolicyGradientModel):
@@ -119,6 +120,7 @@ class TRPOModel(PolicyGradientModel):
             prob_ratio = tf.reduce_mean(input_tensor=tf.concat(values=prob_ratios, axis=1), axis=1)
             self.loss_per_instance = -prob_ratio * self.reward
             self.surrogate_loss = tf.reduce_mean(input_tensor=self.loss_per_instance, axis=0)
+            # tf.summary.scalar('surrogate_loss', self.surrogate_loss)
 
             kl_div = tf.reduce_mean(input_tensor=tf.concat(values=kl_divs, axis=1), axis=1)
 
@@ -150,9 +152,11 @@ class TRPOModel(PolicyGradientModel):
 
             kl_divergence = tf.reduce_mean(input_tensor=tf.concat(values=kl_divergences, axis=1), axis=1)
             self.kl_divergence = tf.reduce_mean(input_tensor=kl_divergence, axis=0)
+            # tf.summary.scalar('kl_divergence', self.kl_divergence)
 
             entropy = tf.reduce_mean(input_tensor=tf.concat(values=entropies, axis=1), axis=1)
             self.entropy = tf.reduce_mean(input_tensor=entropy, axis=0)
+            # tf.summary.scalar('entropy', self.entropy)
 
     def set_session(self, session):
         super(TRPOModel, self).set_session(session)

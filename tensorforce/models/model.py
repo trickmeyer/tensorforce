@@ -140,7 +140,7 @@ class Model(object):
             if config.distributed:
                 scope_context.__exit__(None, None, None)
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(max_to_keep=1000)
         if config.tf_summary is not None:
             # create summary writer
             self.writer = tf.summary.FileWriter(config.tf_summary, graph=tf.get_default_graph())
